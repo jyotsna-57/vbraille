@@ -1,0 +1,60 @@
+# ==============================================================
+#   ViBroBraille - Python Dependencies
+# ==============================================================
+#
+# INSTALL ALL AT ONCE:
+#   pip install -r requirements.txt
+#
+# PHASE 1 DEPENDENCIES (Speech to Text):
+#   openai-whisper    → Whisper STT engine
+#   torch             → PyTorch backend for Whisper
+#   torchaudio        → Audio utilities for Whisper
+#
+# PHASE 2 DEPENDENCIES (NLP + Grammar):
+#   happytransformer  → T5 grammar correction model
+#   spacy             → NLP tokenization / sentence processing
+#
+# After installing spacy, run:
+#   python -m spacy download en_core_web_sm
+#
+# METRICS:
+#   jiwer             → Word Error Rate (WER) calculation
+#
+# WEB FRAMEWORK:
+#   flask             → Backend API server
+#   flask-cors        → Allow frontend to call API
+#
+# DATA:
+#   pandas            → CSV logging and analysis
+#
+# AUDIO (optional - for advanced audio preprocessing):
+#   sounddevice       → Microphone capture
+#   librosa           → Audio analysis
+#   noisereduce       → Noise reduction
+#   scipy             → Signal processing
+# ==============================================================
+
+# ── Core (required) ──────────────────────────────────────────
+flask==3.0.3
+flask-cors==4.0.1
+
+# ── Phase 1: Speech to Text ───────────────────────────────────
+openai-whisper==20231117
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# ── Phase 2: NLP ─────────────────────────────────────────────
+happytransformer==3.0.0
+spacy==3.7.4
+
+# ── Metrics ───────────────────────────────────────────────────
+jiwer==3.0.4
+
+# ── Data ──────────────────────────────────────────────────────
+pandas==2.2.2
+
+# ── Audio (optional) ─────────────────────────────────────────
+sounddevice==0.4.7
+librosa==0.10.2
+noisereduce==3.0.2
+scipy==1.13.1

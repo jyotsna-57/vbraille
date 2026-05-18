@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViBroBraille – Speech & Image to Braille</title>
+  <style>
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --accent:      #58a6ff;
+      --accent-glow: rgba(88,166,255,0.25);
+      --success:     #3fb950;
+      --warning:     #d29922;
+      --danger:      #f85149;
+      --text:        #e6edf3;
+      --muted:       #8b949e;
+      --braille-on:  #58a6ff;
+      --braille-off: #21262d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1.2rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), #bc8cff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header .subtitle { color: var(--muted); font-size: 0.85rem; }
+
+    /* ── Tabs ────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0 2rem;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      padding: 0.85rem 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Tab Content ─────────────────────────────────────── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Main Layout ─────────────────────────────────────── */
+    main {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* ── Cards ───────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card h2 .badge {
+      font-size: 0.7rem;
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 0.1rem 0.5rem;
+      border-radius: 20px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    button.btn {
+      background: var(--accent);
+      color: #0d1117;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    button.btn:hover   { opacity: 0.85; }
+    button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.btn.secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.btn.danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* ── Mic Button ──────────────────────────────────────── */
+    #mic-btn {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-size: 2rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      align-self: center;
+    }
+    #mic-btn:hover { background: var(--accent-glow); }
+    #mic-btn.recording {
+      border-color: var(--danger);
+      color: var(--danger);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248,81,73,0.4); }
+      50%       { box-shadow: 0 0 0 14px rgba(248,81,73,0); }
+    }
+
+    /* ── Text Input ──────────────────────────────────────── */
+    .text-input-row { display: flex; gap: 0.75rem; }
+    input[type="text"] {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+
+    /* ── Status ──────────────────────────────────────────── */
+    .status {
+      font-size: 0.85rem;
+      color: var(--muted);
+      min-height: 1.2rem;
+      text-align: center;
+    }
+    .status.ok      { color: var(--success); }
+    .status.warn    { color: var(--warning); }
+    .status.err     { color: var(--danger); }
+    .status.loading { color: var(--accent); }
+
+    /* ── Output Text ─────────────────────────────────────── */
+    .output-text {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      min-height: 2.5rem;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+    .output-text.placeholder { color: var(--muted); font-style: italic; }
+
+    /* ── Confidence Bar ──────────────────────────────────── */
+    .conf-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
+    .conf-label { font-size: 0.8rem; color: var(--muted); width: 90px; }
+    .conf-bar-bg { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .conf-bar-fill { height: 100%; border-radius: 3px; background: var(--success); transition: width 0.6s ease; width: 0%; }
+    .conf-value { font-size: 0.8rem; color: var(--text); width: 36px; text-align: right; }
+
+    /* ── Braille Display ─────────────────────────────────── */
+    .braille-unicode {
+      font-size: 2.2rem;
+      line-height: 1.8;
+      letter-spacing: 4px;
+      color: var(--accent);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      min-height: 4rem;
+      word-break: break-all;
+    }
+
+    .braille-animated {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      min-height: 5rem;
+    }
+
+    .braille-cell {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      opacity: 0; transform: translateY(8px); transition: all 0.25s ease;
+    }
+    .braille-cell.visible { opacity: 1; transform: translateY(0); }
+    .braille-cell.active  { animation: vibrate 0.3s ease; }
+    @keyframes vibrate {
+      0%   { transform: translateY(0); }
+      20%  { transform: translateY(-3px) rotate(-2deg); }
+      40%  { transform: translateY(2px) rotate(2deg); }
+      60%  { transform: translateY(-2px); }
+      80%  { transform: translateY(1px); }
+      100% { transform: translateY(0); }
+    }
+
+    .braille-dot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--braille-off);
+      border: 1px solid var(--border);
+      transition: background 0.15s ease;
+    }
+    .dot.on { background: var(--braille-on); box-shadow: 0 0 6px var(--accent-glow); }
+    .braille-char-label { font-size: 0.65rem; color: var(--muted); text-align: center; max-width: 24px; overflow: hidden; }
+
+    /* ── Speed Control ───────────────────────────────────── */
+    .speed-row { display: flex; align-items: center; gap: 1rem; }
+    .speed-row label { font-size: 0.85rem; color: var(--muted); }
+    input[type="range"] { flex: 1; accent-color: var(--accent); }
+
+    /* ── Metrics ─────────────────────────────────────────── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 1rem;
+    }
+    .metric-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; text-align: center; }
+    .metric-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+    .metric-label { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* ── Webcam ──────────────────────────────────────────── */
+    #webcam-container {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 16/9;
+      max-height: 340px;
+    }
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #webcam-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      gap: 0.5rem;
+    }
+    #webcam-placeholder .icon { font-size: 2.5rem; }
+    #snapshot-canvas { display: none; }
+
+    /* ── Object Tags ─────────────────────────────────────── */
+    .object-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+    }
+    .object-tag {
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 0.78rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .object-tag .score { color: var(--muted); font-size: 0.7rem; }
+
+    .controls-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    #conf-warning {
+      background: rgba(210,153,34,0.12);
+      border: 1px solid var(--warning);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.82rem;
+      color: var(--warning);
+      display: none;
+      margin-top: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header>
+  <div>
+    <div class="logo">⠧ ViBroBraille</div>
+    <div class="subtitle">Real-time Speech & Image → Braille Conversion</div>
+  </div>
+</header>
+
+<!-- ── Tabs ────────────────────────────────────────────────── -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('speech', this)">
+    🎤 Speech to Braille
+  </button>
+  <button class="tab-btn" onclick="switchTab('image', this)">
+    📷 Image to Braille
+  </button>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 1: SPEECH TO BRAILLE (existing, unchanged)
+     ══════════════════════════════════════════════════════════ -->
+<div id="tab-speech" class="tab-content active">
+<main>
+
+  <div class="card">
+    <h2>🎤 Input <span class="badge">Phase 1 · STT</span></h2>
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      <button id="mic-btn" title="Click to record" onclick="toggleRecording()">🎙️</button>
+      <div id="status" class="status">Click the mic to start recording, or type text below.</div>
+      <div class="text-input-row">
+        <input type="text" id="text-input" placeholder="Or type text here to test pipeline directly..." />
+        <button class="btn" onclick="processText()">Process →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📝 Recognized Text <span class="badge">Phase 1 · Output</span></h2>
+    <div id="recognized-text" class="output-text placeholder">Transcribed speech will appear here...</div>
+    <div class="conf-row">
+      <span class="conf-label">Confidence</span>
+      <div class="conf-bar-bg"><div class="conf-bar-fill" id="conf-bar"></div></div>
+      <span class="conf-value" id="conf-val">—</span>
+    </div>
+    <div id="conf-warning">⚠️ Low confidence detected. The transcription may be inaccurate.</div>
+  </div>
+
+  <div class="card">
+    <h2>🔤 Corrected Text <span class="badge">Phase 2 · NLP</span></h2>
+    <div id="corrected-text" class="output-text placeholder">NLP-corrected text will appear here...</div>
+  </div>
+
+  <div class="card">
+    <h2>⠿ Braille Output <span class="badge">Phase 2 · Braille</span></h2>
+    <div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">Unicode Braille</div>
+    <div id="braille-unicode" class="braille-unicode">—</div>
+    <div class="speed-row" style="margin-top:1rem;margin-bottom:1rem;">
+      <label>Animation Speed</label>
+      <input type="range" id="speed-slider" min="50" max="800" value="250" step="50" oninput="updateSpeed(this.value)" />
+      <span id="speed-value">250 ms</span>
+    </div>
+    <div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">Letter-by-Letter Animation</div>
+    <div id="braille-animated" class="braille-animated"></div>
+    <div class="controls-row" style="margin-top:1rem;">
+      <button class="btn" onclick="replayAnimation()">▶ Replay</button>
+      <button class="btn secondary" onclick="clearAll()">✕ Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📊 Metrics</h2>
+    <div class="metrics-grid">
+      <div class="metric-box"><div class="metric-value" id="m-wer">—</div><div class="metric-label">Word Error Rate</div></div>
+      <div class="metric-box"><div class="metric-value" id="m-latency">—</div><div class="metric-label">Latency (ms)</div></div>
+      <div class="metric-box"><div class="metric-value" id="m-cells">—</div><div class="metric-label">Braille Cells</div></div>
+      <div class="metric-box"><div class="metric-value" id="m-conf">—</div><div class="metric-label">Confidence</div></div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 2: IMAGE TO BRAILLE
+     ══════════════════════════════════════════════════════════ -->
+<div id="tab-image" class="tab-content">
+<main>
+
+  <!-- Webcam Card -->
+  <div class="card">
+    <h2>📷 Webcam Capture <span class="badge">BLIP + YOLOv8</span></h2>
+
+    <div id="webcam-container">
+      <video id="webcam" autoplay playsinline muted></video>
+      <div id="webcam-placeholder">
+        <div class="icon">📷</div>
+        <div>Click "Start Camera" to activate webcam</div>
+      </div>
+    </div>
+
+    <canvas id="snapshot-canvas"></canvas>
+
+    <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap;">
+      <button class="btn" id="cam-btn" onclick="startCamera()">📷 Start Camera</button>
+      <button class="btn secondary" id="snap-btn" onclick="takeSnapshot()" disabled>📸 Capture & Analyze</button>
+      <button class="btn secondary" onclick="stopCamera()">⏹ Stop Camera</button>
+    </div>
+
+    <div id="img-status" class="status" style="margin-top:0.75rem;">
+      Start the camera and capture an image to analyze.
+    </div>
+  </div>
+
+  <!-- Snapshot Preview -->
+  <div class="card" id="snapshot-card" style="display:none;">
+    <h2>🖼 Captured Frame</h2>
+    <img id="snapshot-preview" style="width:100%;border-radius:8px;border:1px solid var(--border);" />
+  </div>
+
+  <!-- BLIP Caption Output -->
+  <div class="card">
+    <h2>💬 Image Caption <span class="badge">BLIP</span></h2>
+    <div id="img-caption" class="output-text placeholder">BLIP caption will appear here...</div>
+  </div>
+
+  <!-- YOLO Object Detection -->
+  <div class="card">
+    <h2>🔍 Detected Objects <span class="badge">YOLOv8</span></h2>
+    <div id="img-objects" class="output-text placeholder" style="margin-bottom:0.75rem;">
+      Detected objects will appear here...
+    </div>
+    <div id="object-tags" class="object-tags"></div>
+  </div>
+
+  <!-- Combined Description -->
+  <div class="card">
+    <h2>📋 Combined Description <span class="badge">NLP</span></h2>
+    <div id="img-combined" class="output-text placeholder">Combined description will appear here...</div>
+  </div>
+
+  <!-- Braille Output for Image -->
+  <div class="card">
+    <h2>⠿ Braille Output <span class="badge">Phase 2 · Braille</span></h2>
+    <div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">Unicode Braille</div>
+    <div id="img-braille-unicode" class="braille-unicode">—</div>
+    <div class="speed-row" style="margin-top:1rem;margin-bottom:1rem;">
+      <label>Animation Speed</label>
+      <input type="range" id="img-speed-slider" min="50" max="800" value="250" step="50"
+             oninput="updateImgSpeed(this.value)" />
+      <span id="img-speed-value">250 ms</span>
+    </div>
+    <div style="margin-bottom:0.5rem;font-size:0.8rem;color:var(--muted);">Letter-by-Letter Animation</div>
+    <div id="img-braille-animated" class="braille-animated"></div>
+    <div class="controls-row" style="margin-top:1rem;">
+      <button class="btn" onclick="replayImgAnimation()">▶ Replay</button>
+      <button class="btn secondary" onclick="clearImage()">✕ Clear</button>
+    </div>
+  </div>
+
+  <!-- Image Metrics -->
+  <div class="card">
+    <h2>📊 Metrics</h2>
+    <div class="metrics-grid">
+      <div class="metric-box"><div class="metric-value" id="img-m-objects">—</div><div class="metric-label">Objects Found</div></div>
+      <div class="metric-box"><div class="metric-value" id="img-m-cells">—</div><div class="metric-label">Braille Cells</div></div>
+      <div class="metric-box"><div class="metric-value" id="img-m-latency">—</div><div class="metric-label">Latency (ms)</div></div>
+      <div class="metric-box"><div class="metric-value" id="img-m-model">BLIP+YOLO</div><div class="metric-label">Models Used</div></div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ══════════════════════════════════════════════════════════ -->
+<script>
+const API_BASE = "http://localhost:5000/api";
+
+// ── Tab Switching ─────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+  document.getElementById(`tab-${tab}`).classList.add("active");
+  btn.classList.add("active");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//   TAB 1: SPEECH TO BRAILLE
+// ══════════════════════════════════════════════════════════════════════════════
+
+let animationSpeed = 250;
+let mediaRecorder  = null;
+let audioChunks    = [];
+let isRecording    = false;
+let currentCells   = [];
+let animTimeout    = null;
+
+function updateSpeed(val) {
+  animationSpeed = parseInt(val);
+  document.getElementById("speed-value").textContent = val + " ms";
+}
+
+function setStatus(msg, type = "") {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className   = "status " + type;
+}
+
+async function toggleRecording() {
+  if (isRecording) stopRecording();
+  else await startRecording();
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const options = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 128000 }
+      : {};
+    mediaRecorder = new MediaRecorder(stream, options);
+    audioChunks   = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      await sendAudio(blob);
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById("mic-btn").classList.add("recording");
+    document.getElementById("mic-btn").textContent = "⏹️";
+    setStatus("Recording... Click stop when done.", "warn");
+  } catch {
+    setStatus("Microphone access denied. Use text input instead.", "err");
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    document.getElementById("mic-btn").classList.remove("recording");
+    document.getElementById("mic-btn").textContent = "🎙️";
+    setStatus("Processing audio...", "loading");
+  }
+}
+
+async function sendAudio(blob) {
+  const formData = new FormData();
+  formData.append("audio", blob, "recording.webm");
+  try {
+    setStatus("Transcribing...", "loading");
+    const res  = await fetch(`${API_BASE}/speech-to-braille`, { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server error");
+    renderResults(data);
+  } catch (err) {
+    setStatus("Error: " + err.message, "err");
+  }
+}
+
+async function processText() {
+  const text = document.getElementById("text-input").value.trim();
+  if (!text) { setStatus("Please enter some text first.", "warn"); return; }
+  setStatus("Processing...", "loading");
+  showRecognizedText(text, 1.0);
+  try {
+    const res  = await fetch(`${API_BASE}/process-text`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, confidence: 1.0 })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server error");
+    renderResults(data);
+  } catch (err) {
+    setStatus("Error: " + err.message, "err");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("text-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") processText();
+  });
+});
+
+function renderResults(data) {
+  showRecognizedText(data.recognized_text || data.original_text || "—", data.confidence);
+  const corrEl = document.getElementById("corrected-text");
+  corrEl.textContent = data.corrected_text || "—";
+  corrEl.classList.remove("placeholder");
+  document.getElementById("braille-unicode").textContent = data.braille || "—";
+  if (data.braille_cells?.length > 0) {
+    currentCells = data.braille_cells;
+    startBrailleAnimation("braille-animated", currentCells, animationSpeed);
+  }
+  document.getElementById("m-wer").textContent     = data.wer !== undefined ? (data.wer * 100).toFixed(1) + "%" : "—";
+  document.getElementById("m-latency").textContent = data.latency_ms !== undefined ? data.latency_ms + " ms" : "—";
+  document.getElementById("m-cells").textContent   = data.braille_cells ? data.braille_cells.filter(c => c.type === "letter" || c.type === "number" || c.type === "punctuation").length : "—";
+  document.getElementById("m-conf").textContent    = data.confidence !== undefined ? Math.round(data.confidence * 100) + "%" : "—";
+  setStatus("✓ Done", "ok");
+}
+
+function showRecognizedText(text, confidence) {
+  const el  = document.getElementById("recognized-text");
+  el.textContent = text;
+  el.classList.remove("placeholder");
+  const pct  = Math.round((confidence || 0) * 100);
+  const bar  = document.getElementById("conf-bar");
+  bar.style.width      = pct + "%";
+  bar.style.background = pct >= 75 ? "var(--success)" : pct >= 50 ? "var(--warning)" : "var(--danger)";
+  document.getElementById("conf-val").textContent          = pct + "%";
+  document.getElementById("conf-warning").style.display   = pct < 70 ? "block" : "none";
+}
+
+function replayAnimation() {
+  if (currentCells.length > 0) {
+    document.querySelectorAll("#braille-animated .braille-cell").forEach(el => el.classList.remove("visible","active"));
+    setTimeout(() => startBrailleAnimation("braille-animated", currentCells, animationSpeed), 100);
+  }
+}
+
+function clearAll() {
+  document.getElementById("recognized-text").textContent = "Transcribed speech will appear here...";
+  document.getElementById("recognized-text").classList.add("placeholder");
+  document.getElementById("corrected-text").textContent = "NLP-corrected text will appear here...";
+  document.getElementById("corrected-text").classList.add("placeholder");
+  document.getElementById("braille-unicode").textContent = "—";
+  document.getElementById("braille-animated").innerHTML  = "";
+  document.getElementById("conf-bar").style.width        = "0%";
+  document.getElementById("conf-val").textContent        = "—";
+  document.getElementById("conf-warning").style.display  = "none";
+  document.getElementById("text-input").value            = "";
+  ["m-wer","m-latency","m-cells","m-conf"].forEach(id => document.getElementById(id).textContent = "—");
+  setStatus("Cleared. Ready for new input.");
+  currentCells = [];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//   TAB 2: IMAGE TO BRAILLE
+// ══════════════════════════════════════════════════════════════════════════════
+
+let imgAnimSpeed  = 250;
+let imgCells      = [];
+let webcamStream  = null;
+let imgAnimTimeout = null;
+
+function updateImgSpeed(val) {
+  imgAnimSpeed = parseInt(val);
+  document.getElementById("img-speed-value").textContent = val + " ms";
+}
+
+function setImgStatus(msg, type = "") {
+  const el = document.getElementById("img-status");
+  el.textContent = msg;
+  el.className   = "status " + type;
+}
+
+async function startCamera() {
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 1280, height: 720, facingMode: "environment" }
+    });
+    const video = document.getElementById("webcam");
+    video.srcObject = webcamStream;
+    document.getElementById("webcam-placeholder").style.display = "none";
+    document.getElementById("snap-btn").disabled = false;
+    setImgStatus("Camera active. Click 'Capture & Analyze' when ready.", "ok");
+  } catch (err) {
+    setImgStatus("Camera access denied: " + err.message, "err");
+  }
+}
+
+function stopCamera() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(t => t.stop());
+    webcamStream = null;
+    document.getElementById("webcam").srcObject = null;
+    document.getElementById("webcam-placeholder").style.display = "flex";
+    document.getElementById("snap-btn").disabled = true;
+    setImgStatus("Camera stopped.");
+  }
+}
+
+function takeSnapshot() {
+  /*
+  HOW THIS WORKS:
+    1. Grab current webcam frame → draw onto hidden <canvas>
+    2. Convert canvas to base64 JPEG string
+    3. POST to /api/image-to-braille
+    4. Backend runs BLIP + YOLO → returns caption, objects, braille
+    5. Render results in UI
+  */
+  const video  = document.getElementById("webcam");
+  const canvas = document.getElementById("snapshot-canvas");
+
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
+
+  // Show snapshot preview
+  const dataURL = canvas.toDataURL("image/jpeg", 0.85);
+  document.getElementById("snapshot-preview").src = dataURL;
+  document.getElementById("snapshot-card").style.display = "block";
+
+  // Strip the data URI prefix → send raw base64 to API
+  const base64 = dataURL.split(",")[1];
+  sendImageToAPI(base64);
+}
+
+async function sendImageToAPI(base64Image) {
+  setImgStatus("Analyzing image with BLIP + YOLOv8...", "loading");
+
+  try {
+    const res  = await fetch(`${API_BASE}/image-to-braille`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ image: base64Image })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server error");
+
+    renderImageResults(data);
+
+  } catch (err) {
+    setImgStatus("Error: " + err.message, "err");
+  }
+}
+
+function renderImageResults(data) {
+  // Caption
+  const capEl = document.getElementById("img-caption");
+  capEl.textContent = data.caption || "No caption generated.";
+  capEl.classList.remove("placeholder");
+
+  // Detected objects
+  const objEl = document.getElementById("img-objects");
+  if (data.detected_objects?.length > 0) {
+    objEl.textContent = data.detected_objects.join(", ");
+    objEl.classList.remove("placeholder");
+
+    // Object tags with confidence scores
+    const tagsEl = document.getElementById("object-tags");
+    tagsEl.innerHTML = "";
+    (data.object_scores || []).forEach(([obj, score]) => {
+      const tag = document.createElement("div");
+      tag.className = "object-tag";
+      tag.innerHTML = `${obj} <span class="score">${Math.round(score * 100)}%</span>`;
+      tagsEl.appendChild(tag);
+    });
+  } else {
+    objEl.textContent = "No objects detected.";
+    document.getElementById("object-tags").innerHTML = "";
+  }
+
+  // Combined description
+  const combEl = document.getElementById("img-combined");
+  combEl.textContent = data.corrected_text || data.combined_text || "—";
+  combEl.classList.remove("placeholder");
+
+  // Braille
+  document.getElementById("img-braille-unicode").textContent = data.braille || "—";
+  if (data.braille_cells?.length > 0) {
+    imgCells = data.braille_cells;
+    startBrailleAnimation("img-braille-animated", imgCells, imgAnimSpeed);
+  }
+
+  // Metrics
+  document.getElementById("img-m-objects").textContent = data.detected_objects?.length ?? "—";
+  document.getElementById("img-m-cells").textContent   = data.braille_cells?.filter(c => c.type === "letter" || c.type === "number").length ?? "—";
+  document.getElementById("img-m-latency").textContent = data.latency_ms ? data.latency_ms + " ms" : "—";
+
+  const models = [];
+  if (data.blip_available) models.push("BLIP");
+  if (data.yolo_available) models.push("YOLO");
+  document.getElementById("img-m-model").textContent = models.length ? models.join("+") : "Mock";
+
+  if (data.mock) {
+    setImgStatus("⚠ Models not loaded — showing mock output. Install: pip install transformers ultralytics", "warn");
+  } else {
+    setImgStatus("✓ Analysis complete", "ok");
+  }
+}
+
+function replayImgAnimation() {
+  if (imgCells.length > 0) {
+    document.querySelectorAll("#img-braille-animated .braille-cell").forEach(el => el.classList.remove("visible","active"));
+    setTimeout(() => startBrailleAnimation("img-braille-animated", imgCells, imgAnimSpeed), 100);
+  }
+}
+
+function clearImage() {
+  ["img-caption","img-objects","img-combined"].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = el.id === "img-caption" ? "BLIP caption will appear here..."
+                   : el.id === "img-objects"  ? "Detected objects will appear here..."
+                   :                             "Combined description will appear here...";
+    el.classList.add("placeholder");
+  });
+  document.getElementById("img-braille-unicode").textContent = "—";
+  document.getElementById("img-braille-animated").innerHTML  = "";
+  document.getElementById("object-tags").innerHTML           = "";
+  document.getElementById("snapshot-card").style.display     = "none";
+  ["img-m-objects","img-m-cells","img-m-latency"].forEach(id => document.getElementById(id).textContent = "—");
+  document.getElementById("img-m-model").textContent = "BLIP+YOLO";
+  setImgStatus("Cleared. Ready for new capture.");
+  imgCells = [];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//   SHARED: BRAILLE ANIMATION ENGINE
+//   (used by both Speech and Image tabs)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function startBrailleAnimation(containerId, cells, speed) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  cells.forEach((cell, idx) => container.appendChild(createCellElement(cell, idx)));
+  animateCells(containerId, 0, cells.length, speed);
+}
+
+function animateCells(containerId, index, total, speed) {
+  if (index >= total) return;
+  const cells = document.querySelectorAll(`#${containerId} .braille-cell`);
+  if (cells[index]) {
+    cells[index].classList.add("visible", "active");
+    setTimeout(() => cells[index].classList.remove("active"), 300);
+    if (navigator.vibrate) navigator.vibrate(40);
+  }
+  setTimeout(() => animateCells(containerId, index + 1, total, speed), speed);
+}
+
+function createCellElement(cell, idx) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "braille-cell";
+
+  const dots    = cell.dots || [];
+  const grid    = document.createElement("div");
+  grid.className = "braille-dot-grid";
+
+  [1,4,2,5,3,6].forEach(dotNum => {
+    const dot = document.createElement("div");
+    dot.className = "dot" + (dots.includes(dotNum) ? " on" : "");
+    grid.appendChild(dot);
+  });
+
+  const brailleChar = document.createElement("div");
+  brailleChar.style.cssText = "font-size:1.4rem;color:var(--accent);line-height:1";
+  brailleChar.textContent   = cell.braille || "⠀";
+
+  const label = document.createElement("div");
+  label.className   = "braille-char-label";
+  label.textContent = cell.type === "space"             ? "␣"
+                    : cell.type === "capital_indicator" ? "⇧"
+                    : cell.type === "numeric_indicator" ? "#"
+                    : cell.char || "";
+
+  wrapper.appendChild(grid);
+  wrapper.appendChild(brailleChar);
+  wrapper.appendChild(label);
+  return wrapper;
+}
+
+// ── Startup health check ───────────────────────────────────────────────────────
+window.addEventListener("load", async () => {
+  try {
+    const res  = await fetch(`${API_BASE}/health`);
+    const data = await res.json();
+    if (data.status === "ok") {
+      setStatus("✓ Server connected and ready.", "ok");
+      const m = data.models || {};
+      setImgStatus(
+        `Server connected. BLIP: ${m.blip ? "✓ Ready" : "✗ Not loaded"} | YOLO: ${m.yolo ? "✓ Ready" : "✗ Not loaded"}`,
+        (m.blip && m.yolo) ? "ok" : "warn"
+      );
+    }
+  } catch {
+    setStatus("⚠ Cannot reach server. Make sure app.py is running.", "err");
+    setImgStatus("⚠ Cannot reach server.", "err");
+  }
+});
+</script>
+
+</body>
+</html>
